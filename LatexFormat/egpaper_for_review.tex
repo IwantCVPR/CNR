@@ -6,6 +6,7 @@
 \usepackage{graphicx}
 \usepackage{amsmath}
 \usepackage{amssymb}
+\usepackage{mathrsfs}
 
 % Include other packages here, before hyperref.
 
@@ -47,7 +48,7 @@ First line of institution2 address\\
 
 %%%%%%%%% ABSTRACT
 \begin{abstract}
-   In this paper, we propose a method called ‘Convolution Neural Ruler’ (CNR) to measure distance by summing values of different dimensions which is just like using a ruler. To demonstrate the efficiency of CNR, we apply it into a non-proposal based detection system which is used to detect multi-oriented scene texts with various sizes, orientations and aspect ratios. On benchmark ICDAR2015 which focuses on incidental texts, the F1-measure achieves 77\% surpassing the second place by a large extent. We also give convincing results on benchmark ICDAR2013 and MSRA-TD500.
+   In this paper, we propose a method called ‘Convolution Neural Ruler’ (CNR) to measure distances by summing values of different dimensions which is just like using a ruler. To demonstrate the efficiency of CNR, we apply it into a non-proposal based detection system which is used to detect multi-oriented scene texts with various sizes, orientations and aspect ratios. The results, especially for long and multi-oriented texts, verify the reasonableness and efficiency of the proposed method. On benchmark ICDAR2015 which focuses on incidental texts, the F1-measure achieves 77\% surpassing the second place by a large extent. We also give convincing results on benchmark ICDAR2013 and MSRA-TD500.
 \end{abstract}
 
 %%%%%%%%% BODY TEXT
@@ -61,33 +62,45 @@ Despite proposal based regression is superior to non-proposal based one, it cann
 
 The reason why non-proposal based regression struggles to localize object correctly, as well as the non-proposal based regression fail to localize object with too large aspect ratio, is that it is difficult to directly regress a distribution with large variance by using the Euclidean Loss. And it is also the case even for the toy problem shown in Fig.2.
 
-To solve this problem, we propose the ‘Convolution Neural Ruler’ (CNR) to measure the distance like a ruler. First we set several dimensions like kilometer, meter and millimeter. Then we regress values ranging from zero to one for each dimension. Finally we combine the values of each dimension to get the predicted result. The whole process is just like how we use a rule --- we actually measure the length by adding values of each dimension.
+To solve this problem, we propose the ‘Convolution Neural Ruler’ (CNR) to measure the distance like a ruler. First we set several dimensions $D_i (i\in \{1, 2 ..., N\})$ like kilometer, meter and millimeter. Then we regress values $V_i (i\in \{1, 2 ..., N\})$ ranging from zero to one for each dimension. Finally we combine the values of each dimension by $\sum_{i=1}^{N} D_{i} \cdot V_{i}$ as the predicted result. The whole process is just like how we use a rule --- we actually take the measurements by adding values multiple dimensions.
 
-To test the efficiency of ‘CNR’, we design a non-proposal based detection system and choose scene texts whose aspect ratios and orientations vary much more than general objects as the detection targets. The results, especially for long and multi-oriented texts, given by our method demonstrate the reasonableness and efficiency of the proposed method.
+To test the efficiency of CNR, we design a non-proposal based detection system and choose scene texts whose aspect ratios and orientations vary much more than general objects as the detection targets. The results, especially for long and multi-oriented texts, given by our method demonstrate the reasonableness and efficiency of the proposed method.
 
-To sum up, the main contributions of this paper are in three folds: firstly, we propose a method called ‘Convolution Neural Ruler’ to make it possible directly regress arbitrary values; secondly, we propose a non-proposal based detection system to localize multi-oriented scene text with CNR embedded to accurately determine the bounds of text. Benefitting from the precise bound given by our system, we have got state of the art result on benchmarks with multi-oriented text surpassing recent results with a large margin. 
+To sum up, the main contributions of this paper are in three folds: firstly, we propose a method called ‘Convolution Neural Ruler’ to make it possible directly regress arbitrary values; secondly, we propose a non-proposal based detection system to localize multi-oriented scene text with CNR embedded to accurately determine the bounds of text. Benefiting from the precise bound given by our system, we have got state of the art result on benchmarks with multi-oriented text surpassing recent results with a large margin. 
 
-%The reminding parts of this paper are arranged as follows: Section 2 gives a brief review of object and scene text detection, Section 3 introduces the details of our detection system including , Section 4 displays the results and analysis of reasonableness of CNR and Section 5 concludes our work.
-
+The reminding parts of this paper are arranged as follows: Section 2 gives a brief review of bounding box regression and multi-oriented text detection, Section 3 introduces the details of our detection system including , Section 4 displays the results and analysis of reasonableness of CNR and Section 5 offers a conclusion of our work.
 
 \section{Related Work}
+\subsection{Bounding box regression}
+Most detection structures based on convolution neural network are multi-task structure with a classifier for object recognition and a regressor for bounding box regression. 
+[overfeat] trains the regressor by minimizing the $\ell_2$ loss between predicted and true bounding boxes. 
+[YOLO] trains the regressor much like [overfeat] and for better performance it predicted the square root value of box size. However, both [overfeat] and [YOLO] gave less satisfying results on localization. 
+Methods like [rcnn] [sppnet] [fast-rcnn] [multibox] handle the regressor training by an indirect way where they predict the relative distances between proposals and corresponded ground truths. Since relative distances are much smaller, the localization results come to be more accurate.
+While for [faster-rcnn] [ssd], both of them convert region proposals into 'anchors' and lay more emphasis on end-to-end structure and less time consuming.
+However, if we have to detect objects with variety of sizes, orientation and aspect ratios by an end-to-end way, resorting to a non-proposal based detection method rather than more complicated 'anchors' [deep text] and iterative localization [fast-rcnn] [detection-via-multiregionANDsegmentation] would be more effective and efficient.
 
-\subsubsection{Deep model based regression}
+\subsection{Multi-oriented text detection}
+Most research on multi-oriented text detection follows a 'character to line' strategy which localizes characters beforehand and then groups characters into text lines by rules. Previous works on character detection are mainly based on classifying connected components [] []. Recently [FCN-text] has proposed a method which takes advantages of fully convolution network [FCN] to segment the text line and character regions instead of recognizing connected components. [CTPN-eccv16] regards the vertical slices of a text line as characters and connected them by a Bi-directional LSTM. No matter how the referred methods deal with characters or text line, they cannot skip the character localization stage. Although [deep-text] can directly outputs words' bounding boxes without detecting letters, it is suitable to deal with horizontal text and detecting excessive long and multi-oriented text based on this method may require more complicated design of 'anchors' [faster rcnn].
 
-\subsubsection{Scene text detection}
 
-\section{Proposed Method}
+
+\section{Non-proposal Based Network}
+The non-proposal structure proposed by us is illustrated in Fig.2.
+
 In this section, we describe the proposed method in detail. First we give an overview of the non-proposal based detection system, Second we formulated 'CNR' embedded in our detection system. Third we 
 
-\subsection{System overview}
-
+\subsection{Network structure}
+The network structure is shown in Fig.3. Since the regressor is require to measure length up to the input image size, the receptive field of network is designed to be larger than the input image size. And for precise measurement of small object, we should also fuse low-level features to provide detailed information. 
 \subsection{Convolution neural ruler}
 
-\subsection{Network structure}
-
-\subsection{Asymmetric regression loss}
+\subsection{NMS}
 
 \section{Experiments}
+\subsection{Experiments on toy dataset}
+
+\subsection{Experiments on text detection}
+\subsection{Dimension analysis of CNR} % may be unreasonable = = then we drop this subsection
+To explain the reasonableness of CNR, we output the value for each dimension and check whether our model learn to measure like a ruler.
 
 \section{Conclusion}
 
