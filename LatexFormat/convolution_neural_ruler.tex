@@ -1,0 +1,90 @@
+\documentclass[10pt,twocolumn,letterpaper]{article}
+
+\usepackage{cvpr}
+\usepackage{times}
+\usepackage{epsfig}
+\usepackage{graphicx}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{mathrsfs}
+
+% Include other packages here, before hyperref.
+
+% If you comment hyperref and then uncomment it, you should delete
+% egpaper.aux before re-running latex.  (Or just hit 'q' on the first latex
+% run, let it finish, and you should be clear).
+\usepackage[pagebackref=true,breaklinks=true,letterpaper=true,colorlinks,bookmarks=false]{hyperref}
+
+% \cvprfinalcopy % *** Uncomment this line for the final submission
+
+\def\cvprPaperID{****} % *** Enter the CVPR Paper ID here
+\def\httilde{\mbox{\tt\raisebox{-.5ex}{\symbol{126}}}}
+
+% Pages are numbered in submission mode, and unnumbered in camera-ready
+\ifcvprfinal\pagestyle{empty}\fi
+\begin{document}
+	
+	%%%%%%%%% TITLE
+	\title{Convolution Neural Ruler: A Measurement Method and Application in Multi-Oriented Text Detection}
+	
+	\author{First Author\\
+		Institution1\\
+		Institution1 address\\
+		{\tt\small firstauthor@i1.org}
+		% For a paper whose authors are all at the same institution,
+		% omit the following lines up until the closing ``}''.
+		% Additional authors and addresses can be added with ``\and'',
+		% just like the second author.
+		% To save space, use either the email address or home page, not both
+		\and
+		Second Author\\
+		Institution2\\
+		First line of institution2 address\\
+		{\tt\small secondauthor@i2.org}
+	}
+	
+	\maketitle
+	%\thispagestyle{empty}
+	
+	%%%%%%%%% ABSTRACT
+	\begin{abstract}
+	balabala
+	\end{abstract}
+	
+	%%%%%%%%% BODY TEXT
+	\section{Network Architecture}
+	Our text detection network is conjuncted by three parts shown in Fig.[network]. 
+	The convolution feature extraction part is designed by ourselves following the principle that the maximum receptive field is larger than the input image size $S$. 
+	The feature fusion part refers the design in [FCN] and here we combine convolution features from four streams. 
+	The multi-task part has two branches. 
+	The detection task output $\mathcal{M}_{det}$ is a $\frac{S}{4} \times \frac{S}{4}$ 2nd-order tensor and it can be approximated as down-sampled segmentation for input images. Elements in $\mathcal{M}_{det}$ with higher score are prone to be text, other wise to be background.
+	The regression task output $\mathcal{M}_{reg}$ is a $\frac{S}{4} \times \frac{S}{4} \times C$ 3rd-order tensor. The channel size $C$ of $\mathcal{M}_{reg}$ indicates that we intend to output bounding boxes represented by $\frac{C}{2}$ points. The value $L_{\left(w, h, c\right)}$ located at $\left(w, h, c\right)$ of $\mathcal{M}_{reg}$ means the offset from the corresponded bound to the pixel at $\left(4w, 4h\right)$ in input image and therefore, the bounding box can be formulated by 
+	$\left\{ L_{\left(w, h, c\right)} + \left(4w, 4h\right) \vert \ c \in \left\{1, 2, \cdots C \right\} \right\}$
+	
+	
+	% and it can be sliced into 8 2nd-order tensors with size $\frac{S}{4} \times \frac{S}{4}$ 
+	
+	\section{Convolution Neural Ruler}
+	Dislodging the subscripts in $L_{\left(w, h, c\right)}$, the CNR takes feature $\chi$ from feature fusion part as input and outputs $L \in \left[-S, S\right]$.
+	We set a dimension set $D = \left\{D_i \vert \ D_i > 0, i \leq N \right\}$ such that $\sum_{i = 1}^{N} D_i \geq 2S$ beforehand.
+	And then the network learned to regress a coefficient set $l = \left\{ l_i \vert \ l_i \in \left[ 0, 1 \right], i \leq N \right\}$ and we denote $l_i = \mathcal{F}_i \left( \chi \right)$.
+	At last, we calculate $L$ by Eq.1 and a more intuitive explanation is shown in Fig.[CNR]
+	\begin{equation}
+	L = \sum_{i = 1}^{N} \left( l_i \cdot D_i - \frac{D_i}{2} \right)
+	\end{equation}
+	
+	\section{Loss Functions and Ground Truth}
+	
+	\section{Implementation}
+	We set the input image size $S$ to be 320 and $C$ to be 8 which means we express a bounding box by 4 corner points. Thus we can express multi-oriented boxes more freely than only using two points. 
+	For the CNR module, dimension set $D$ is assigned as $\left\{1000, 100, 10, 5\right\}$. 
+	
+	In training, samples are cropped from images rotated randomly by $0$, $\frac{\pi}{2}$, $\pi$, or $\frac{3\pi}{2}$. Text lines whose minimum side are regarded as positive if ranging in $\left[32 \times 2^{-1}, 32 \times 2^{1} \right]$, ignored if ranging in $\left[32 \times 2^{-1.5},  32 \times 2^{-1}\right) \cup \left(32 \times 2^{1},  32 \times 2^{1.5}\right]$ and negative otherwise.
+	
+	
+	{\small
+		\bibliographystyle{ieee}
+		\bibliography{egbib}
+	}
+	
+\end{document}
