@@ -17,15 +17,20 @@
 
 % \cvprfinalcopy % *** Uncomment this line for the final submission
 
-\def\cvprPaperID{****} % *** Enter the CVPR Paper ID here
+\def\cvprPaperID{1366} % *** Enter the CVPR Paper ID here
 \def\httilde{\mbox{\tt\raisebox{-.5ex}{\symbol{126}}}}
 
 % Pages are numbered in submission mode, and unnumbered in camera-ready
 \ifcvprfinal\pagestyle{empty}\fi
+
+% set the 3rd order title not showing digit
+% \setcounter{secnumdepth}{2}
+
+
 \begin{document}
 
 %%%%%%%%% TITLE
-\title{Convolution Neural Ruler: A Measurement Method and Application in Multi-Oriented Text Detection}
+\title{Accurate Distance Measurement For Multi-Oriented Text Detection}
 
 \author{First Author\\
 Institution1\\
@@ -48,119 +53,209 @@ First line of institution2 address\\
 
 %%%%%%%%% ABSTRACT
 \begin{abstract}
-   In this paper, we propose a method called ‘Convolution Neural Ruler’ (CNR) to measure distances by summing values of different dimensions which is just like using a ruler. To demonstrate the efficiency of CNR, we apply it into a non-proposal based detection system which is used to detect multi-oriented scene texts with various sizes, orientations and aspect ratios. The results, especially for long and multi-oriented texts, verify the reasonableness and efficiency of the proposed method. On benchmark ICDAR2015 which focuses on incidental texts, the F1-measure achieves 77\% surpassing the second place by a large extent. We also give convincing results on benchmark ICDAR2013 and MSRA-TD500.
+	Deep convolution neural network based object detection has gained great improvements in recent years and proposal based methods like Faster-RCNN have achieved impressive performance in both classification and localization. However, the lagging utilization in scene text reveals the deficiency of these methods in detecting objects of various scales, aspect ratios and orientations. 
+	
+	In this paper, we propose a novel structure called `Convolution Neural Ruler' (CNR) to realize accurate distance measurement by summing values of different dimensions which acts like using a ruler. To demonstrate the effectiveness of CNR, we apply it into a non-proposal based detection structure to directly output the word-level bounding box of multi-oriented text.
+	We test our model on three benchmarks, and the results, especially for multi-oriented text, verify the reasonableness and efficiency of the proposed method. On benchmark ICDAR2015 and MSRA-TD500, we obtains the F1-measure of 77\% and 80\% respectively, which are new state-of-the-art and significantly outperform previous approaches. 
+	On benchmark ICDAR2013 focusing on horizontal text, our method also gives persuasive performance.
 \end{abstract}
 
 %%%%%%%%% BODY TEXT
 \section{Introduction}
+	Recently, convolution neural networks (CNNs) have dramatically driven the improvements of object detection. Unlike object classification which only performs classification on image-level, object detection is also required to supply a bounding box for each object. As a result, most CNN based detection structures like [Fast RCNN] [Faster RCNN] [SSD] [YOLO] [Densebox] are multi-task structure with one recognizer for classification and one regressor for localization.
 
-Recently, convolution neural networks (CNNs) have significantly driven the improvements of object detection. Unlike object classification or segmentation which only perform classification on image-level or pixel-level, object detection requires not only to recognize the object, but also to measure the bound of each object. As a result, most CNN based detection structures like [Fast RCNN] [Faster RCNN] [SSD] [YOLO] [Densebox] are multi-task structure with one recognizer for classification and one regressor for localization.
+	According to the design of regression task, we can divide recent detection structures into two groups: proposal based regression method [Fast RCNN] [Faster RCNN] [SSD] and non-proposal based regression [YOLO] [Overfeat] [Densebox] method. 
+	The former predicts the offset from proposal to the corresponded ground truth and the latter directly predicts the bound of an object. Current high performance detection structures like [Faster RCNN] [SSD] [Fast RCNN] are belong to proposal based regression method and they profit from the easier regression task in which proposals are not far from the corresponded ground truths. On the contrary, the non-proposal based regression method struggles to localize objects correctly also for similar reason [YOLO].
 
-According to the design of regression task, we can divide recent detection methods into two groups: proposal based regression method [Fast RCNN] [Faster RCNN] [SSD] and non-proposal based regression [YOLO] [Densebox] method. The former predicts the offset from the proposal to the ground truth and the latter directly predicts the bound of an object. Current high performance detection structures like [Faster RCNN] [SSD] are belong to proposal based regression method and they benefit from the easier regression task in which proposals are not far from the corresponded ground truth. On the contrary, the non-proposal based regression method struggles to localize objects correctly which has been pointed out in [YOLO].
+	% Despite proposal based regression is superior to non-proposal based one, we still cannot avoid the problem that it will be difficult to get accurate localization if we have to output a bounding box whose aspect ratio is too large and this will be normally encountered in detecting text [See Fig.1, in figure 1 we should displayed the values need to get]. Simply increasing the diversity of ‘anchors’ may be effective [Deep-Text] but sacrifices efficiency of the whole detection system. Consequently, resorting to non-proposal based structure is a more promising choice. (it should be moved to related work)
 
-Despite proposal based regression is superior to non-proposal based one, it cannot avoid the problem that it will be difficult to get ideal results if we have to output a bounding box whose aspect ratio is too large and this will be normally encountered in detecting text lines [See Fig.1]. Simply increasing the diversity of ‘anchors’ like [Deep-Text] may be effective but sacrifices efficiency of the whole detection system.
+	To investigate the reason why non-proposal based regression fails to localize accurately, we first introduce the conception of `relative minimum error' (RME) which means the relative minimum difference between prediction and target that can be tolerated. For example, if we intend to regress values in $\mathcal{A} = \left\{0, 1, 2, \cdots, 10\right\}$, the RME would be the same as that in regressing values belonging to $\mathcal{B} = \left\{0, 100, 200, \cdots, 1000\right\}$. Because we just need to output a sigmoid-activated value under the same precision and the only difference is the followed multiplier. However, the practical case can be deemed as regressing values in $\mathcal{A} \cup \mathcal{B}$, whose RME are much smaller than single set regression and this increases the difficulty for network optimizing by a large extent.
+	
+	Inspired by the analysis above and the usage of ruler, we propose the `Convolution Neural Ruler' (CNR) which is enable to regress arbitrary values under the same RME. 
+	First we set several dimensions $D_i (i\in \{1, 2 ..., N\})$ just like meter, centimeter and millimeter. Then we regress values $V_i (i\in \{1, 2 ..., N\})$ ranging from zero to one for each dimension. Finally we combine the values of each dimension by $\sum_{i = 1}^{N} D_{i} \cdot V_{i}$ as the predicted result. The whole process is just like how we use a rule and no matter how values changes, the RME for each dimension keeps the same.
+	
+	To prove the effectiveness of CNR, we embed it into a non-proposal based detection network called `Convolution Neural Ruler Network' (CNRN) and choose scene text whose aspect ratio and orientation varies much more than generic object as the detection target. The outcomes, especially for long and multi-oriented texts, given by our method demonstrate the reasonableness of the proposed method.
 
-The reason why non-proposal based regression struggles to localize object correctly, as well as the non-proposal based regression fail to localize object with too large aspect ratio, is that it is difficult to directly regress a distribution with large variance by using the Euclidean Loss. And it is also the case even for the toy problem shown in Fig.2.
-
-To solve this problem, we propose the ‘Convolution Neural Ruler’ (CNR) to measure the distance like a ruler. First we set several dimensions $D_i (i\in \{1, 2 ..., N\})$ like kilometer, meter and millimeter. Then we regress values $V_i (i\in \{1, 2 ..., N\})$ ranging from zero to one for each dimension. Finally we combine the values of each dimension by $\sum_{i=1}^{N} D_{i} \cdot V_{i}$ as the predicted result. The whole process is just like how we use a rule --- we actually take the measurements by adding values multiple dimensions.
-
-To test the efficiency of CNR, we design a non-proposal based detection system and choose scene texts whose aspect ratios and orientations vary much more than general objects as the detection targets. The results, especially for long and multi-oriented texts, given by our method demonstrate the reasonableness and efficiency of the proposed method.
-
-To sum up, the main contributions of this paper are in three folds: firstly, we propose a method called ‘Convolution Neural Ruler’ to make it possible directly regress arbitrary values; secondly, we propose a non-proposal based detection system to localize multi-oriented scene text with CNR embedded to accurately determine the bounds of text. Benefiting from the precise bound given by our system, we have got state of the art result on benchmarks with multi-oriented text surpassing recent results with a large margin. 
-
-The reminding parts of this paper are arranged as follows: Section 2 gives a brief review of bounding box regression and multi-oriented text detection, Section 3 introduces the details of our detection system including , Section 4 displays the results and analysis of reasonableness of CNR and Section 5 offers a conclusion of our work.
+	To sum up, the main contributions of this paper are in two folds: firstly, we propose a method called `Convolution Neural Ruler' for accurate regression of arbitrary value; secondly, we propose a non-proposal based detection network CNRN to localize multi-oriented scene text with CNR embedded. 
+	
+	The reminder of this paper are arranged as follows: Section 2 gives a brief review of bounding box regression and multi-oriented text detection, Section 3 introduces the details of our detection system, Section 4 displays the performance on benchmarks and analysis of CNR and Section 5 offers a conclusion of our work.
 
 \section{Related Work}
-\subsection{Bounding box regression}
-Most detection structures based on convolution neural network are multi-task structure with a classifier for object recognition and a regressor for bounding box regression. 
-[overfeat] trains the regressor by minimizing the $\ell_2$ loss between predicted and true bounding boxes. 
-[YOLO] trains the regressor much like [overfeat] and for better performance it predicted the square root value of box size. However, both [overfeat] and [YOLO] gave less satisfying results on localization. 
-Methods like [rcnn] [sppnet] [fast-rcnn] [multibox] handle the regressor training by an indirect way where they predict the relative distances between proposals and corresponded ground truths. Since relative distances are much smaller, the localization results come to be more accurate.
-While for [faster-rcnn] [ssd], both of them convert region proposals into 'anchors' and lay more emphasis on end-to-end structure and less time consuming.
-However, if we have to detect objects with variety of sizes, orientation and aspect ratios by an end-to-end way, resorting to a non-proposal based detection method rather than more complicated 'anchors' [deep text] and iterative localization [fast-rcnn] [detection-via-multiregionANDsegmentation] would be more effective and efficient.
+	\noindent \textbf{Bounding box regression.} 
+	Most detection structures based on convolution neural network are multi-task structure with a classifier for object recognition and a regressor for bounding box localization.
+	[overfeat] trains the regressor by minimizing the $\ell_2$ loss between predicted and true bounding boxes. 
+	[YOLO] trains the regressor much like [overfeat] and for better performance it predicted the square root value of box size. However, both [overfeat] and [YOLO] gave less satisfying results on localization. 
+	Methods like [rcnn] [sppnet] [fast-rcnn] [multibox] handle the regressor training by an indirect way where they predict the relative distances between proposals and corresponded ground truths. Since relative distances are much smaller, the localization turns to be more accurate.
+	While for [faster-rcnn] [ssd], both of them convert region proposals into `anchors' and lay more emphasis on end-to-end structure as well as less time consuming.
+	However, if we have to detect objects with variety of sizes, orientations and aspect ratios by an end-to-end way, resorting to a non-proposal based detection method rather than more complicated `anchors' [deep text] and iterative localization [fast-rcnn] [detection-via-multiregionANDsegmentation] would be more effective and efficient.
 
-\subsection{Multi-oriented text detection}
-Most research on multi-oriented text detection follows a 'character to line' strategy which localizes characters beforehand and then groups characters into text lines by rules. Previous works on character detection are mainly based on classifying connected components [] []. Recently [FCN-text] has proposed a method which takes advantages of fully convolution network [FCN] to segment the text line and character regions instead of recognizing connected components. [CTPN-eccv16] regards the vertical slices of a text line as characters and connected them by a Bi-directional LSTM. No matter how the referred methods deal with characters or text line, they cannot skip the character localization stage. Although [deep-text] can directly outputs words' bounding boxes without detecting letters, it is suitable to deal with horizontal text and detecting excessive long and multi-oriented text based on this method may require more complicated design of 'anchors' [faster rcnn].
+	\noindent \textbf{Multi-oriented text detection.}
+	Most research on multi-oriented text detection follows a `character to line' pipeline which localizes characters beforehand and then groups characters into text lines. Previous works on character detection are mainly based on classifying connected components [] []. Recently [FCN-text] has proposed a method which takes advantages of fully convolution network [FCN] to segment the text lines and characters instead of recognizing connected components. [CTPN-eccv16] regards the vertical slices of a text line as characters and connected them by a Bi-directional LSTM. No matter how the referred methods deal with characters or text line, they cannot skip the character localization stage once they utilize the sequence attribute of text lines. Although [deep-text] can directly outputs words' bounding boxes without detecting letters, it is suitable to deal with horizontal text and detecting excessive long and multi-oriented text based on this method may require more complicated design of `anchors'.
 
 
 
-\section{Non-proposal Based Network}
-The non-proposal structure proposed by us is illustrated in Fig.2.
+\section{Convolution Neural Ruler Network}
+	The overview of CNRN illustrated in Fig.2 is conjuncted by three parts and the following subsections provide more details of the network.
+	\subsection{Network Architecture}
+	The convolution feature extraction part is designed by ourselves following the principle that the maximum receptive field is larger than the input image size $S$. 
+	The feature fusion part refers the design in [FCN] and here we combine convolution features from four streams. 
+	The multi-task part has two branches. 
+	The detection task output $\mathcal{M}_{det}$ is a $\frac{S}{4} \times \frac{S}{4}$ 2nd-order tensor and it can be approximated as down-sampled segmentation for input images. Elements in $\mathcal{M}_{det}$ with higher score are prone to be text, other wise to be background.
+	The regression task output $\mathcal{M}_{reg}$ is a $\frac{S}{4} \times \frac{S}{4} \times C$ 3rd-order tensor. The channel size $C$ of $\mathcal{M}_{reg}$ indicates that we intend to output bounding boxes represented by $\frac{C}{2}$ points. The value $L_{\left(w, h, c\right)}$ located at $\left(w, h, c\right)$ of $\mathcal{M}_{reg}$ means the offset from the corresponded bound to the pixel at $\left(4w, 4h\right)$ in input image and therefore, the bounding box can be formulated by 
+	$\left\{ L_{\left(w, h, c\right)} + \left(4w, 4h\right) \vert \ c \in \left\{1, 2, \cdots, C \right\} \right\}$
 
-In this section, we describe the proposed method in detail. First we give an overview of the non-proposal based detection system, Second we formulated 'CNR' embedded in our detection system. Third we 
+	\subsection{Convolution Neural Ruler}
+	Dislodging the subscripts in $L_{\left(w, h, c\right)}$, the CNR takes feature $\chi$ from feature fusion part as input and outputs $L \in \left[-S, S\right]$.
+	We set a dimension set $D = \left\{D_i \vert \ D_i > 0, i \leq N \right\}$ such that $\sum_{i = 1}^{N} D_i \geq 2S$ beforehand.
+	And then the network learned to regress a coefficient set $l = \left\{ l_i \vert \ l_i \in \left[ 0, 1 \right], i \leq N \right\}$ and we denote $l_i = \mathcal{F}_i \left( \chi \right)$.
+	At last, we calculate $L$ by Eq.1. In Eq.1 we minus the half of each dimension for the predicted distances are signed values. A visualized explanation of CNR is shown in Fig.[CNR]
+	\begin{equation}
+		L = \sum_{i = 1}^{N} \left( l_i \cdot D_i - \frac{D_i}{2} \right)
+	\end{equation}
 
-\subsection{Network structure}
-The network structure is shown in Fig.3. Since the regressor is require to measure length up to the input image size, the receptive field of network is designed to be larger than the input image size. And for precise measurement of small object, we should also fuse low-level features to provide detailed information. 
-\subsection{Convolution neural ruler}
+	\subsection{Ground Truth and Loss Function}
+	The full multi-task loss $\mathcal{L}$ can be represented as,
+	\begin{equation}
+		\mathcal{L} = \mathcal{L}_{det} + \lambda_{reg} \cdot \mathcal{L}_{reg}
+	\end{equation}
+	where $\mathcal{L}_{det}$ and $\mathcal{L}_{reg}$ represent loss for detector and regressor respectively. The balance between two tasks is controlled by $\lambda_{reg}$.
+	
+	\noindent \textbf{Detection task.}
+	Unlike implementation in [FCN-text], we do not try to parse all pixels in a bounding box, instead, we only regard the center line region as positive and enclose positive region with an ignored bound as transition from positive to negative. The positive radius is proportional to the short side size of text line as shown in Fig.[GT design]. More of this if the short side of a text line is too small or too big, it is regarded as ignored or negative region. 
 
-\subsection{NMS}
+	The loss function $\mathcal{L}_{det}$ chosen for detection task is hinge loss and denote the ground truth for a given pixel as $y^{\ast}_{i} \in \left\{0, 1\right\}$ and predicted value as $\hat{y_{i}}$, $\mathcal{L}_{det}$ is formulated by Eq.2
+	\begin{equation}
+		\mathcal{L}_{det} = \frac{2}{S^{2}} \sum_{i = 1}^{\frac{S^{2}}{4}} \text{max}\left(0, \text{sign}\left(0.5 - y^{\ast}_{i}\right) \cdot \left(\hat{y_{i}} - y^{\ast}_{i} \right) \right)^{2}
+	\end{equation}
+
+	Besides of this, we also adopt the class balancing and hard negative sample mining as introduced in [Densebox] for better performance and faster convergence. So during training, the predicted values for ignored region and easily classified negative region are set zero.
+	
+	\noindent \textbf{Regression task.}
+	The loss function $\mathcal{L}_{reg}$ used in regression task consists with that in [fast rcnn] for similar reasons. Denote the ground truth for a given pixel as $z^{\ast}_{i}$ and predicted value as $\hat{z_{i}}$, $\mathcal{L}_{reg}$ is formulated by Eq.3
+	\begin{equation}
+		\mathcal{L}_{reg} = \sum_{i}^{\frac{S^2}{4}} \left[y^{\ast}_i > 0\right] \cdot \text{smooth}_{L_1} \left(z^{\ast}_{i} - \hat{z_{i}}\right)
+	\end{equation}
+	in which 
+	\begin{equation}
+		\text{smooth}_{L_1}\left(x\right) = 
+			\left\{\begin{matrix}
+			0.5x^2 & \text{if} \left | x \right |  < 1 \\ 
+			\left |x\right | - 0.5 & \text{otherwise}
+			\end{matrix}\right.
+	\end{equation}
+	
+	\subsection{Network Implementation}
+	We set the input image size $S$ to be 320 and $C$ to be 8 which means we express a bounding box by 4 corner points. Thus we can express multi-oriented boxes more freely than only using two points. 
+	For the CNR module, dimension set $D$ is assigned as $\left\{1000, 100, 10, 5\right\}$. 
+
+	In training, samples are cropped from images rotated randomly by $0$, $\frac{\pi}{2}$, $\pi$, or $\frac{3\pi}{2}$. Text lines are regarded as positive if their minimum sides fall in $\left[32 \times 2^{-1}, 32 \times 2^{1} \right]$, ignored if ranging in $\left[32 \times 2^{-1.5},  32 \times 2^{-1}\right) \cup \left(32 \times 2^{1},  32 \times 2^{1.5}\right]$ and negative otherwise. The positive radius ratio and ignored bound referred in Sec3.3 are set to be 0.2 and 1 respectively. And the task balance index $\lambda_{reg}$ keeps 0.01 through training.
+
+	In testing, since we can only handle images smaller than $320 \times 320$, we adopt a multi-scale sliding window strategy in which windows size is $320 \times 320$, sliding stride is $160$ and multi-scale set is $\left\{2^{-5}, 2^{-4}, \cdots, 2^{1}\right\}$. Scores in $\mathcal{M}_{det}$ are deemed as background if lower than $0.7$. After obtaining the predicted bounding boxes, we apply the non-maximum suppression to reduce dense overlapped predictions.
+
 
 \section{Experiments}
-\subsection{Experiments on toy dataset}
+	\subsection{Evaluation Datasets}
+	We evaluate our method on three datasets, in which the first two focus on multi-oriented texts and the third one focuses on horizontal texts.
+	
+	\noindent \textbf{ICDAR2015.} The ICDAR2015 Incidental Scene Text dataset includes 1000 training images and 500 testing images. Unlike previous scene text datasets where texts are well captured, horizontal and high resolution, this dataset focuses on texts with various orientations, viewpoints, scales and resolution. The predicted bounding boxes are required to be expressed by four corner points.
+	
+	\noindent \textbf{MSRA-TD500.} The MSRA-TD500 is also a multi-orientation text dataset including 300 training images and 200 testing images. The dataset is bi-lingual containing English and Chinese. Unlike ICDAR2015, where ground truth is marked at word level, the annotations of MSRA-TD500 are sentence level, since the maximum length measured by CNR is restricted by the input image size, we connect the overlapped sentence slices by simple rules. 
+	
+	It should be be mentioned that, considering the unlikeness of annotations between ICDAR2015 and MSRA-TD500, we give up using the training set provided by MSRA-TD500. Benefiting from the generalization power of our model, we can also get state-of-the-art result on MSRA-TD500.
+	
+	\noindent \textbf{ICDAR2013.} The ICDAR2013 dataset shares the same annotation method with ICDAR2015, but lay emphasis on horizontal and clear scene texts. It includes 229 training images and 233 testing images. The evaluation protocol which allows grouping words into a text line is more flexible than that of ICDAR2015.
+	
+	\subsection{Experiment Results}
+	\noindent \textbf{ICDAR2015.} From the result shown in Tab.1, our method outperforms previous results by a large extent in both precision and recall. Considering there're only two published results in literature, we also list the top 3 F1-score in ICDAR2015 competition for better comparison.
+	
+	\begin{table}
+		\caption{Comparison of methods on ICDAR2015}
+		\centering
+		\begin{tabular}{|c|c|c|c|}
+			\hline
+			Algorithm & Precision & Recall & F-measure \\
+			\hline
+			\hline
+			\textbf{CNRN} & \textbf{0.87} & \textbf{0.69} & \textbf{0.77} \\
+			\hline
+			Tian [eccv16] & 0.74 & 0.52 & 0.61 \\
+			\hline
+			Zhang [fcn-text] & 0.71 & 0.43 & 0.54 \\
+			\hline
+			StradVision2 & 0.77 & 0.37 & 0.50 \\
+			\hline
+			StradVision1 & 0.53 & 0.46 & 0.50 \\
+			\hline
+			NJU-Text & 0.70 & 0.36 & 0.47 \\
+			\hline
+		\end{tabular}
+	\end{table}
+	
+	\noindent \textbf{MSRA-TD500.} The result is shown in Tab.2, our method outperforms previous results by a large extent in both precision and recall.
+	
+	\begin{table}
+		\caption{Comparison of methods on MSRA-TD500}
+		\centering
+		\begin{tabular}{|c|c|c|c|}
+			\hline
+			Algorithm & Precision & Recall & F-measure \\
+			\hline
+			\hline
+			\textbf{CNRN} & \textbf{0.00} & \textbf{0.00} & \textbf{0.00} \\
+			\hline
+			Zhang [fcn-text] & 0.83 & 0.67 & 0.74 \\
+			\hline
+			Yin & 0.81 & 0.63 & 0.71 \\ % Multiorientation scene text detection with adaptive clustering
+			\hline
+			Kang & 0.71 & 0.62 & 0.66 \\ % Orientation robust text line detection in natural images
+			\hline
+			Yin & 0.71 & 0.61 & 0.65 \\ % Robust text detection in natural scene images
+			\hline
+			Yao & 0.63 & 0.63 & 0.60 \\ % Detecting texts of arbitrary orientations in natural images
+			\hline
+		\end{tabular}
+	\end{table}
+	
+	\noindent \textbf{ICDAR2013.} Our method on ICDAR2013 is also convincing, although not the state-of-the-art as shown in Tab.3. Most errors are caused by the inability to enclose letters at either end.
+	
+	\begin{table}
+		\caption{Comparison of methods on ICDAR2013}
+		\centering
+		\begin{tabular}{|c|c|c|c|}
+			\hline
+			Algorithm & Precision & Recall & F-measure \\
+			\hline
+			\hline
+			Tian & 0.93 & 0.83 & 0.88 \\
+			\hline
+			\textbf{CNRN} & \textbf{0.92} & \textbf{0.81} & \textbf{0.86} \\
+			\hline
+			Zhong[deep-text] & 0.87 & 0.83 & 0.85 \\ 
+			\hline
+			Zhang[fcn-text] & 0.88 & 0.78 & 0.83 \\ % 
+			\hline
+			Tian [textflow] & 0.85 & 0.76 & 0.80 \\ % text flow: a unified text detection system in natural scene images
+			\hline
+		\end{tabular}
+	\end{table}	
+	
+	
+	\subsection{Comparison of Different Dimension Set}
+	In this subsection, we compare the performance of different dimension set
+	
+	\subsection{CNR and Proposals} % may be unreasonable = = then we drop this subsection
+	To explain the reasonableness of CNR, we compared the loss caused by each dimension ...
+	
+	We can also try to bridge the relation between CNR and proposals used in proposal-based detection structure. 
+	
+	%\subsection{Training Details}
+	%The model is optimized by stochastic gradient descent (SGD) with back-propagation and the max iteration is 200,000. We adopt `multistep' strategy in Caffe[] to adjust learning rate. For the first 20,000 iterations the learning rate is fixed to be 0.01 and after that it is reduced by 10 times. Beside of this, the hard negative ratio is 
+	
+	
 
-\subsection{Experiments on text detection}
-\subsection{Dimension analysis of CNR} % may be unreasonable = = then we drop this subsection
-To explain the reasonableness of CNR, we output the value for each dimension and check whether our model learn to measure like a ruler.
 
 \section{Conclusion}
 
-\section{title}
-
-%-------------------------------------------------------------------------
-
-%-------------------------------------------------------------------------
-
-
-\subsection{Mathematics}
-
-Please number all of your sections and displayed equations.  It is
-important for readers to be able to refer to any particular equation.  Just
-because you didn't refer to it in the text doesn't mean some future reader
-might not need to refer to it.  It is cumbersome to have to use
-circumlocutions like ``the equation second from the top of page 3 column
-1''.  (Note that the ruler will not be present in the final copy, so is not
-an alternative to equation numbers).  All authors will benefit from reading
-Mermin's description of how to write mathematics:
-\url{http://www.pamitc.org/documents/mermin.pdf}.
-
-
-\subsection{Blind review}
-\begin{figure}[t]
-\begin{center}
-\fbox{\rule{0pt}{2in} \rule{0.9\linewidth}{0pt}}
-   %\includegraphics[width=0.8\linewidth]{egfigure.eps}
-\end{center}
-   \caption{Example of caption.  It is set in Roman so that mathematics
-   (always set in Roman: $B \sin A = A \sin B$) may be included without an
-   ugly clash.}
-\label{fig:long}
-\label{fig:onecol}
-\end{figure}
-
-
-so prefer \cite{Alpher03,Alpher02,Authors14} to
-\cite{Alpher02,Alpher03,Authors14}.
-
-
-\begin{figure*}
-\begin{center}
-\fbox{\rule{0pt}{2in} \rule{.9\linewidth}{0pt}}
-\end{center}
-   \caption{Example of a short caption, which should be centered.}
-\label{fig:short}
-\end{figure*}
-
-
-%-------------------------------------------------------------------------
-\subsection{Footnotes}
-
-Please use footnotes\footnote {This is what a footnote looks like.  It
-often distracts the reader from the main flow of the argument.} sparingly.
-Indeed, try to avoid footnotes altogether and include necessary peripheral
-observations in
-the text (within parentheses, if you prefer, as in this sentence).  If you
-wish to use a footnote, place it at the bottom of the column on the page on
-which it is referenced. Use Times 8-point type, single-spaced.
 
 
 
