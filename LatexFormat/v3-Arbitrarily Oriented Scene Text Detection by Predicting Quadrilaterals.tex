@@ -1,0 +1,476 @@
+\documentclass[10pt,twocolumn,letterpaper]{article}
+
+\usepackage{cvpr}
+\usepackage{times}
+\usepackage{epsfig}
+\usepackage{graphicx}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{mathrsfs}
+\usepackage{subfigure} % add by kk
+\usepackage{float} % add by kk
+\usepackage{CJK} % add by kk
+\usepackage{amsmath} % add by kk
+\usepackage{amssymb} % add by kk
+\usepackage{longtable} % add by kk
+\usepackage{multirow} % add by kk
+\usepackage{array} % add by kk
+\usepackage{chngpage} %  add by kk
+%\usepackage{hyperref} % add by kk
+\usepackage{mathrsfs} % add by kk
+\usepackage{float}
+
+% Include other packages here, before hyperref.
+
+% If you comment hyperref and then uncomment it, you should delete
+% egpaper.aux before re-running latex.  (Or just hit 'q' on the first latex
+% run, let it finish, and you should be clear).
+\usepackage
+	[pagebackref=true,
+	breaklinks=true,
+	letterpaper=true,
+	colorlinks,
+	linkcolor=red,
+	bookmarks=false,
+	urlcolor=red]{hyperref}
+
+% \cvprfinalcopy % *** Uncomment this line for the final submission
+
+\def\cvprPaperID{1366} % *** Enter the CVPR Paper ID here
+\def\httilde{\mbox{\tt\raisebox{-.5ex}{\symbol{126}}}}
+
+% Pages are numbered in submission mode, and unnumbered in camera-ready
+\ifcvprfinal\pagestyle{empty}\fi
+
+% set the 3rd order title not showing digit
+% \setcounter{secnumdepth}{2}
+
+
+\begin{document}
+
+%%%%%%%%% TITLE
+\title{Arbitrarily Oriented Scene Text Detection by Predicting Quadrilaterals}
+
+\author{First Author\\
+Institution1\\
+Institution1 address\\
+{\tt\small firstauthor@i1.org}
+% For a paper whose authors are all at the same institution,
+% omit the following lines up until the closing ``}''.
+% Additional authors and addresses can be added with ``\and'',
+% just like the second author.
+% To save space, use either the email address or home page, not both
+\and
+Second Author\\
+Institution2\\
+First line of institution2 address\\
+{\tt\small secondauthor@i2.org}
+}
+
+\maketitle
+%\thispagestyle{empty}
+
+%%%%%%%%% ABSTRACT
+\begin{abstract}
+	Treating texts as oriented long shaped objects, we propose a non-proposal based scene text detection method which can detect arbitrarily oriented texts by predicting quadrilaterals.
+	Our detection framework is simple and effective with a fully convolutional network and one-step post processing.
+	The fully convolutional network is optimized in an end-to-end way and has a bi-task output in which one is for pixel-wise classification between text and background, and the other is for regression to determine the vertex coordinates of quadrilaterals.
+	The proposed method is particularly beneficial for localizing incidental scene texts, which are hard to identify the constituent characters. 
+	On the ICDAR2015 Incidental Scene Text benchmark, our method achieves the F1-measure of 81\%, which is a new state-of-the-art and significantly outperforms previous approaches.
+	On other standard datasets with focused scene texts, our method also performs competitively.
+	
+\end{abstract}
+
+%%%%%%%%% BODY TEXT
+\section{Introduction}
+	\label{Sec.1}
+	
+	Scene text detection has drawn great interests from both computer vision and machine learning communities because of its great value in practical uses and the technical challenges. 
+	Owing to the intensive research in the past years, especially the adoption of deep convolutional neural networks (CNNs), focused horizontal text detection has been greatly improved during the past two years \cite{fcn-text} \cite{yolo-text} \cite{ctpn}.
+	However, most CNN-based approaches still assume horizontal or nearly horizontal text lines, and a general framework to detect multi-oriented texts is not well studied. The detection of incidental texts, which have abundant variations of blurring, scale, direction, aspect ration and font style, remains a bigger challenge.
+	
+	\begin{figure}
+		\label{Fig.1}
+		\centering
+		\includegraphics[scale=0.18]{figures/Fig1.eps}
+		\caption{Natural scene texts in various of scale, orientation, perspective distortion and aspect ratio.}
+	\end{figure}
+	
+	Text detection methods can be divided into two groups according to the comprehension of what is text. Most traditional methods \cite{swt} \cite{yfpan} \cite{mser1} \cite{mser2} \cite{textflow} regard text as a character composite \cite{survey} and as a result, those methods follow a ``character to line'' strategy. 
+	In other words, they first localize characters or components and then group them into a word or text line. 
+	It works well on clean images where characters or components are salient, but is insufficient for images with blurred or low-resolution texts.
+	The other kind of methods simply treat text words or lines as objects \cite{yolo-text} \cite{symmetry-text} \cite{deep-text} regardless of the composition attribute. 
+	This strategy takes advantage of the holistic textual properties of texts and their distinction from background, and performs well when trained with scene text data, especially when using deep neural network models such as convolutional neural network.
+	
+	The dramatic improvements in generic object detection are mainly attributed to deep convolutional feature and end-to-end structure design. 
+	In proposal based methods, the work in \cite{rcnn} performs classification based on cropped proposals beforehand, while works like \cite{sppnet} \cite{fast-rcnn} try to integrate proposal stage with the network without clipping images. 
+	After that, proposals are replaced by ``anchors'' devised in \cite{faster-rcnn}, and so, proposal-based object detection totally realizes global training and testing. 
+	Non-proposal based methods like \cite{overfeat} \cite{multibox} \cite{yolo} \cite{ssd} \cite{densebox} were also proposed, and some of them are similar with \cite{faster-rcnn} in sense of adopting anchor mechanism. 
+	The detection of incidental text (as shown in Fig.\hyperref[Fig.1]{1}), however, is greatly different from generic object and the popular anchor mechanism cannot be directly implemented for long and heavily inclined text.
+	
+	In this paper, we propose a novel architecture based on fully convolutional network (FCN) \cite{fcn} for word level arbitrarily oriented text detection. 
+	Our non-proposal based detection framework is able to output arbitrarily quadrilaterals without utilizing the sequentiality or anchor mechanism. On the ICDAR2015 Incidental Scene Text benchmark, we obtain F1-measure of 81\%, which is a new state-of-the-art and surpass the second placed method by a large margin. On other popular datasets of focused images, the proposed method also performs competitively.
+	
+	The proposed method has several novelties and advantages.
+	First, it generalizes CNN-based generic object detection method by regressing arbitrary quadrilaterals, so as to detect texts of arbitrary orientation. 
+	In our framework, all the parameters except the post processing module can be optimized in an end-to-end way. 
+	Moreover, when regarding a word as an object, our framework can perform word level detection without word partition procedure in post processing.
+	For post processing, we also propose a recalled nonmaximum suppression (NMS), which is modified from NMS for object detection to partition the texts that are too close.
+	
+	
+	The rest of this paper is organized as follows: In Section \hyperref[Sec.2]{2} we give a brief review of detection for scene text and generic object, in Section \hyperref[Sec.3]{3} we introduce details of our proposed method, in Section \hyperref[Sec.4]{4} we present the results on benchmarks, rationality analysis as well as time consumption estimation and, in Section \hyperref[Sec.5]{5} we conclude this paper.
+
+\section{Related Work}
+	\label{Sec.2}
+	\noindent{\textbf{Scene Text Detection.}} Most scene text detection methods \cite{fcn-text} \cite{ctpn}-\cite{textflow} treat text as a composite of characters, so they first localize character or components candidates and then group them into a word or text line. 
+	Even for multi-oriented text, methods like \cite{yao2012detecting} \cite{yin2015multi} \cite{kang2014orientation} \cite{yi2011text} also follow the same strategy and the multi-oriented line grouping is accomplished by either rule based methods or more complex graphic model. 
+	However, for incidental text in the ICDAR2015 dataset, some blurred or low resolution characters in a word could not be well extracted, which hinders the performance of localization.
+	
+	Recently, some text detection methods discard the text composition and take text words or lines as generic objects.
+	The method in \cite{symmetry-text} makes use of the symmetric feature of text lines and tries to detect text line as a whole. 
+	Despite the novelty of this work, the feature it uses is not robust for cluttered images. 
+	The method in \cite{yolo-text} adopts the framework for object detection in \cite{yolo}, but the post processing relies on the text sequentiality.
+	The method in \cite{deep-text}, based on Faster R-CNN \cite{faster-rcnn}, attempts to convert text detection into object detection and the performance on horizontal texts demonstrates its effectiveness. However, constrained by the anchor mechanism and wide variety of text shapes, as well as the Intersection-over-Union (IoU) criterion in training, the Faster R-CNN based multi-oriented text detection requires many modifications and sacrifice the efficiency.
+	
+	\noindent{\textbf{Generic Object Detection.}}
+	Most generic object detection frameworks are multi-task structure with a classifier for recognition and a regressor for localization. 
+	According to the distinction of regressor, we divide these methods into two groups. 
+	The first one is non-proposal based regression method \cite{overfeat} \cite{yolo} \cite{densebox} and the regressor is trained to directly predict bounding boxes of objects. 
+	The second one is proposal based regression method \cite{sppnet} \cite{fast-rcnn} \cite{faster-rcnn} \cite{multibox} \cite{ssd} \cite{gidaris2015object} and regressor is trained to predict the offset from proposals to corresponding ground truths. 
+	The proposals here can be generated by either low-level features \cite{uijlings2013selective} \cite{cheng2014bing} \cite{zitnick2014edge} or simple clustering \cite{multibox}, as well as anchor mechanism \cite{faster-rcnn}.
+	
+	Although most of the recent state-of-the-art approaches are proposal based regression method, considering the wide variety of texts in scale, orientation, perspective distortion and aspect ratio, non-proposal based regression has the potential advantage of avoiding the difficulty of proposal generation in complex images.
+
+\section{Proposed Methodology}
+	\label{Sec.3}
+	The proposed detection system is diagrammed in Fig.\hyperref[Fig.2]{2}. It consists of four major parts: the first three modules, namely convolutional feature extraction, multi-level feature fusion, multi-task learning, together constitute the network part, and the last post processing part performs recalled NMS, which is an extension of traditional NMS.
+	
+	\begin{figure*}
+		\label{Fig.2}
+		\centering
+		\includegraphics[scale=0.29]{figures/pipelinePNG.eps}
+		\caption{Overview of the proposed text detection method.}
+	\end{figure*}
+	
+	\subsection{Network Architecture}
+	\label{Sec.3.1}
+	The convolutional feature extraction part is designed so that the maximum receptive field is larger than the input image size $S$. 
+	Considering the text feature is not as complicated as that of generic objects, our network tends to employ less parameters than models designed for ImageNet.
+	The feature fusion part refers to the design in \cite{fcn} and here we combine convolutional features from four streams.
+	However, for reducing computation, we only up-sample the fused feature to quarter size of the input image.
+	The multi-task part has two branches: 
+	First, the classification task output $\mathcal{M}_{cls}$ is a $\frac{S}{4} \times \frac{S}{4}$ 2nd-order tensor and it can be approximated as down-sampled segmentation (indicating text/background) for input images. Elements in $\mathcal{M}_{cls}$ with higher score are likely to be text, otherwise background;
+	Second, the localization task output $\mathcal{M}_{loc}$ is a $\frac{S}{4} \times \frac{S}{4} \times 8$ 3rd-order tensor.
+	The channel size of $\mathcal{M}_{loc}$ indicates that we intend to output 8 coordinates, corresponding to the quadrilateral vertexes of the text. 
+	The value at $\left(w, h, c\right)$ in $\mathcal{M}_{loc}$ is denoted as $L_{\left(w, h, c\right)}$, which means the offset from coordinate of a quadrilateral vertex to that of the point at $\left(4w, 4h\right)$ in input image, and therefore, the quadrilateral $\mathcal{B} \left(w, h\right)$ can be formulated as 
+	\begin{equation}
+		\mathcal{B} \left(w, h\right) \! = \! \left\{ L_{\left(w, h, c\right)} + \left(4w, 4h\right) \big| c \in \left\{1, 2, \cdots, 8 \right\}
+		\right\}
+	\end{equation}
+	By combining outputs of multi-task, we predict a quadrilateral with score for each point of $\frac{S}{4} \times \frac{S}{4}$ map.
+	More detailed structure and parameterized configuration of the network is shown in Fig.\hyperref[Fig.3]{3}. Note that in our approach, both classification and localization are conducted at $1/4$ resolution of original image.
+
+	\begin{figure}
+		\label{Fig.3}
+		\centering
+		\includegraphics[scale=0.35]{figures/network_details.eps}
+		\caption{Structure of the network. Left: Detailed components of the convolutional feature extraction and multi-level feature fusion. The ``ConvUnit(w, h, n)'' represents a convolutional layer of n $w \times h$ kernels, connected by a batch normalization layer and a ReLU layer. Right: The design of multi-task module.}
+	\end{figure}
+
+	\subsection{Ground Truth and Loss Function}
+	\label{Sec.3.2}
+	The full multi-task loss $\mathcal{L}$ can be represented as
+	
+	\begin{equation}
+		\mathcal{L} = \mathcal{L}_{cls} + \lambda_{loc} \cdot \mathcal{L}_{loc},
+	\end{equation}
+	
+	\noindent where $\mathcal{L}_{cls}$ and $\mathcal{L}_{loc}$ represent loss for classifier and regressor respectively. The balance between two tasks is controlled by $\lambda_{loc}$.
+	
+	\noindent \textbf{Classification task.}
+	Although the ground truth for classification task can be deemed as a down-sampled segmentation between text and background, unlike the implementation in \cite{fcn-text}, we do not take all pixels of text region as positive, instead, we only regard pixels around the text center line within distance $r$ as positive and enclose positive region with an ignored boundary as transition from positive to negative (shown in Fig.\hyperref[Fig.4]{4}). The parameter $r$ is proportional to the short side of text with ratio 0.2. 
+	
+	Furthermore, text is taken as a positive sample only when its short side length ranges in $\left[32 \times 2^{-1}, 32 \times 2^{1} \right]$. If the short side length falls in $\left[32 \times 2^{-1.5},  32 \times 2^{-1}\right) \cup \left(32 \times 2^{1},  32 \times 2^{1.5}\right]$, we take the text as ignored, otherwise negative. Ground truths designed in this way reduce the confusion between text and non-text, which is beneficial for discriminative feature learning.
+	
+	\begin{figure}
+		\label{Fig.4}
+		\centering
+		\subfigure[]{
+			\includegraphics[scale=0.24]{figures/gtmappng.eps}}
+		
+		\subfigure[]{
+			\includegraphics[scale=0.3]{figures/input_patch.eps}}
+		\caption{Visualized ground truth of multi-task. (a) The left map is the ground truth for classification task, where the yellow region are positive, enclosed by ignored region. The right map is the ground truth of top-left offset for localization task where values grow smaller from left to right within a word region. (b) The corresponding input image taken by the network.}
+	\end{figure}
+	
+	The loss function $\mathcal{L}_{cls}$ chosen for classification task is the hinge loss. Denote the ground truth for a given pixel as $y^{\ast}_{i} \in \left\{0, 1\right\}$ and predicted value as $\hat{y_{i}}$, $\mathcal{L}_{cls}$ is formulated as
+	\begin{equation}
+		\mathcal{L}_{cls} = \frac{2}{S^{2}} \sum_{i = 1}^{\frac{S^{2}}{4}} \text{max}\left(0, \text{sign}\left(0.5 - y^{\ast}_{i}\right) \cdot \left(\hat{y_{i}} - y^{\ast}_{i} \right) \right)^{2}
+	\end{equation}
+
+	Besides this, we also adopt the class balancing and hard negative sample mining as introduced in \cite{densebox} for better performance and faster convergence. Hence during training, the predicted values for ignored region and easily classified negative area are forced to zero.
+	
+	\noindent \textbf{Localization task.}
+	According to \cite{fast-rcnn}, the loss function $\mathcal{L}_{loc}$ used in localization task can be defined as follows. Denote the ground truth for a given pixel as $z^{\ast}_{i}$ and predicted value as $\hat{z_{i}}$, $\mathcal{L}_{loc}$ is formulated as 
+	
+	\begin{equation}
+		\mathcal{L}_{loc} = \sum_{i}^{\frac{S^2}{4}} \left[y^{\ast}_i > 0\right] \cdot \text{smooth}_{L_1} \left(z^{\ast}_{i} - \hat{z_{i}}\right) ,
+	\end{equation}
+	
+	\begin{equation}
+		\text{smooth}_{L_1}\left(x\right) = 
+			\left\{\begin{matrix}
+			0.5x^2 & \text{if} \left | x \right |  < 1 , \\ 
+			\left |x\right | - 0.5 & \text{otherwise} .
+			\end{matrix}\right.
+	\end{equation}
+	
+	We choose smooth $L_1$ loss here because it is less sensitive to outliers compared with $L_2$ loss. During training stage, smooth $L_1$ loss need less careful tuning of learning rate and decreases steadily.
+	
+	% If really effective ... The loss function $\mathcal{L}_{loc}$ used in localization task is a smoothed $\text{L}_{1}$ in \cite{fast-rcnn} for similar reasons.
+	
+	
+	\subsection{Recalled Non-Maximum Suppression}
+	\label{Sec.3.3}
+	After we get the outputs produced by multi-task learning, each point with high score in classification task is related with a quadrilateral, however, there will be densely overlapped quadrilaterals for a word or text line. To reduce the redundant results we propose a method called recalled non-maximum suppression which is specialized for text detection. The recalled NMS mainly solves the problem that when texts are close, quadrilaterals between two words are often retained because of the difficulty in classifying pixels in word space.
+	
+	The recalled NMS has three steps as shown in Fig.\hyperref[Fig.5]{5}. Firstly, we get suppressed quadrilaterals $\mathcal{B}_{sup}$ from densely overlapped quadrilaterals $\mathcal{B}$ by traditional NMS. Secondly, each quadrilateral in $\mathcal{B}_{sup}$ is switched to the one with highest score in $\mathcal{B}$ beyond a given overlap. After this step, quadrilaterals in word space are changed to quadrilaterals of higher score. Thirdly, after the second step we may get dense overlapped quadrilaterals again, and instead of suppression, we merge quadrilaterals in $\mathcal{B}_{sup}$ which are close to each other.
+	
+	\begin{figure}
+		\label{Fig.5}
+		\centering
+		\includegraphics[scale=0.1]{figures/R-NMS.eps}
+		\caption{Three steps in recalled NMS. Left: results of traditional NMS (quadrilaterals in red are false detection). Middle: recalled high score quadrilaterals. Right: merging results by overlap ratio.}
+	\end{figure}	
+	
+	\subsection{Network Implementation}
+	\label{Sec.3.4}
+	The training samples of $320 \times 320$ are cropped from scaled images rotated randomly by $0, \ {\pi}/{2}, \ \pi, \ \text{or} \ {3\pi}/{2}$. The task balance index $\lambda_{loc}$ is raised from 0.01 to 0.5 after the classification task gets well trained. In testing, when images are larger than $320 \times 320$, we adopt a multi-scale sliding window strategy in which window size is $320 \times 320$, sliding stride is $160$ and multi-scale set is $\left\{2^{-5}, 2^{-4}, \cdots, 2^{1}\right\}$. Pixels on $\mathcal{M}_{cls}$ are deemed as text if their values are higher than $0.7$. In post processing, the only parameter, overlap ratio, in recalled NMS is 0.5.
+
+
+\section{Experiments}
+	\label{Sec.4}
+	We evaluate our method on three benchmarks: ICDAR2015 Incidental Scene Text, MSRA-TD500 and ICDAR2013. The first two datasets have multi-oriented texts and the third one has mostly horizontal texts. For fair comparison we also list recent state-of-the-art methods on these benchmarks.
+
+	\subsection{Benchmark Description}
+	\label{Sec.4.1}
+	
+	\noindent \textbf{ICDAR2015 Incidental Scene Text.} This dataset is recently published for ICDAR2015 Robust Reading Competition. It contains 1000 training images and 500 test images. Different from previous scene text datasets where texts are well captured in high resolution, this dataset contains texts with various scales, resolution, blurring, orientations and viewpoint. 
+	The annotation of bounding box (actually quadrilateral) also differs greatly from previous ones which has 8 coordinates of four corners in a clock-wise manner. 
+	In evaluation stage, word-level predictions are required.
+	
+	
+	\noindent \textbf{MSRA-TD500.} This dataset contains 300 training images and 200 test images, where there are many multi-oriented text lines. Texts in this dataset are stably captured with high resolution and are bi-lingual of both English and Chinese.
+	
+	The annotations of MSRA-TD500 are at line level which casts great influence on training localization task.
+	Lacking of line level annotation and sufficient bi-lingual training data, we did not use the training set and instead, utilize the generalization of our model trained on English word-level data.
+	
+	\noindent \textbf{ICDAR2013 Focused Scene Text.} This dataset lays more emphasis on horizontal scene texts. It contains 229 training images and 233 test images which are well captured and clear.	The evaluation protocol which allows grouping words into a text line is more flexible than that of ICDAR2015, but is more strict in Intersection-over-Union criterion.
+	
+	\subsection{Implementation Details}
+	\label{Sec.4.2}
+	The network is optimized by stochastic gradient descent (SGD) with back-propagation and the max iteration is $2 \times 10^{5}$. We adopt the ``multistep'' strategy in Caffe \cite{caffe} to adjust learning rate. For the first $3 \times 10^{4}$ iterations the learning rate is fixed to be $10^{\text{-}2}$ and after that it is reduced to $10^{\text{-}3}$ until the $10^5$th iteration. For the rest $10^5$ iteration, the learning rate keeps $10^{\text{-}4}$. Apart from adjusting learning rate, the hard sample ratio mentioned in Sec.\hyperref[Sec.3.2]{3.2} is increased from 0.2 to 0.7 at the $3 \times 10^4$th iteration. Weight decay is $4 \times 10^{\text{-}4}$ and momentum is 0.9. All layers except in localization task are initialized by ``xavier'' \cite{glorot2010understanding} and the rest layers are initialized to a constant value 0 for stable convergence.
+	
+	The model is optimized on training datasets from ICDAR2013 and ICDAR2015, as well as 200 negative images (scene images without text) collected from the Internet. The whole experiments are conducted on Caffe and run on a workstation with 2.9GHz 12-core CPU, 256G RAM, GTX Titan X and Ubuntu 64-bit OS.
+	
+	\subsection{Experiment Results}
+	\label{Sec.4.3}
+	
+	\noindent \textbf{ICDAR2015 Incidental Scene Text.} The results shown in Tab.\hyperref[Tab.1]{1} indicates the proposed method outperforms previous best one by a large margin in both precision and recall.
+	To make a more meaningful comparison, we also list the top five F-measure of results in ICDAR2015 competition for extensive comparison. 
+	Some examples of our detection results are shown in Fig.\hyperref[Fig.6]{6}.
+	
+	\begin{table}
+		\label{Tab.1}
+		\small
+		\renewcommand\arraystretch{1.2}
+		\centering
+		\caption{Comparison of methods on ICDAR2015 dataset.}
+		\begin{tabular}{|c|c|c|c|}
+			\hline
+			Algorithm & Precision & Recall & F-measure \\
+			\hline
+			\hline
+			\textbf{Proposed} & \textbf{0.85} & \textbf{0.77} & \textbf{0.81} \\
+			\hline
+			Tian \emph{et al.} \cite{ctpn} & 0.74 & 0.52 & 0.61 \\
+			\hline
+			Zhang \emph{et al.} \cite{fcn-text} & 0.71 & 0.43 & 0.54 \\
+			\hline
+			StradVision2 \cite{karatzas2015icdar} & 0.77 & 0.37 & 0.50 \\
+			\hline
+			StradVision1 \cite{karatzas2015icdar} & 0.53 & 0.46 & 0.50 \\
+			\hline
+			NJU-Text \cite{karatzas2015icdar} & 0.70 & 0.36 & 0.47 \\
+			\hline
+			AJOU \cite{karatzas2015icdar} & 0.47 & 0.47 & 0.47 \\
+			\hline
+			HUST\_MCLAB  \cite{karatzas2015icdar} & 0.44 & 0.38 & 0.41 \\
+			\hline
+		\end{tabular}
+	\end{table}
+	
+	\begin{figure}
+		\label{Fig.6}
+		\centering	
+		\subfigure[] {
+			\label{Fig.sub.6a}
+			\includegraphics[scale=0.19]{figures/5-a.eps}}
+		\subfigure[] {
+			\label{Fig.sub.6b}
+			\includegraphics[scale=0.185]{figures/5-b.eps}}
+		\subfigure[] {
+			\label{Fig.sub.6c}
+			\includegraphics[scale=0.185]{figures/5-c.eps}}	
+		\caption{Detection examples of our model on ICDAR2015 Incidental Scene Text benchmark. (a) detection of multi-oriented texts. (b) automatic word partition within clustered texts. (c) detection for curved text, curlicue font, occlusion and low resolution.}
+	\end{figure}
+	
+	\noindent \textbf{MSRA-TD500.} The results of our method on this dataset are shown in Tab.\hyperref[Tab.2]{2}, with comparison with representative results of state-of-the art methods.
+	It is shown that our method could reach the state-of-the-art performance even without adopting the provided training set or any other Chinese text data. 
+	Since our method could only detect text in word level, we implement line grouping method based on heuristic rules in post processing. 
+	Although our model shows strong compatibility for both English and Chinese, we still fail to detect Chinese text lines that have wide character spaces or complex background. 
+	Part of our detection results are shown in Fig.\hyperref[Fig.7]{7}.
+	
+	\begin{table}
+		\label{Tab.2}
+		\small
+		\renewcommand\arraystretch{1.2}
+		\centering
+		\caption{Comparison of methods on MSRA-TD500 dataset.}
+		\begin{tabular}{|c|c|c|c|}
+			\hline
+			Algorithm & Precision & Recall & F-measure \\
+			\hline
+			\hline
+			\textbf{Proposed} & \textbf{0.77} & \textbf{0.70} & \textbf{0.74} \\
+			\hline
+			Zhang \emph{et al.} \cite{fcn-text} & 0.83 & 0.67 & 0.74 \\
+			\hline
+			Yin \emph{et al.} \cite{yin2015multi} & 0.81 & 0.63 & 0.71 \\ % Multiorientation scene text detection with adaptive clustering
+			\hline
+			Kang \emph{et al.} \cite{kang2014orientation} & 0.71 & 0.62 & 0.66 \\ % Orientation robust text line detection in natural images
+			\hline
+			Yin \emph{et al.} \cite{mser2} & 0.71 & 0.61 & 0.65 \\ % Robust text detection in natural scene images
+			\hline
+			Yao \emph{et al.} \cite{yao2012detecting} & 0.63 & 0.63 & 0.60 \\ % Detecting texts of arbitrary orientations in natural images
+			\hline
+		\end{tabular}
+	\end{table}
+	
+	\begin{figure}
+		\label{Fig.7}
+		\centering	
+		\subfigure[] {
+			\label{Fig.sub.7a}
+			\includegraphics[scale=0.165]{figures/6-a.eps}}
+		\subfigure[] {
+			\label{Fig.sub.7b}
+			\includegraphics[scale=0.21]{figures/6-b.eps}}
+		
+		\caption{Detection examples of our model on MSRA-TD500. (a) Chinese text lines can also be detected due to the model generalization. (b) failure cases for complicated background or wide character space.}
+	\end{figure}
+	
+	
+	
+	
+	\noindent \textbf{ICDAR2013.} The detection results of our method on the ICDAR2013 dataset are shown in Tab.\hyperref[Tab.3]{3}.
+	The performance of our method is very competitive to the best previous result on this dataset.
+	Failed cases are mainly caused by single character text and the inability to enclose letters at either end. Part of our detection results are shown in Fig.\hyperref[Fig.8]{8}.
+	
+	\begin{table}
+		\label{Tab.3}
+		\small
+		\renewcommand\arraystretch{1.2}
+		\centering
+		\caption{Comparison of methods on ICDAR2013 dataset.}
+		\begin{tabular}{|c|c|c|c|}
+			\hline
+			Algorithm & Precision & Recall & F-measure \\
+			\hline
+			\hline
+			{Tian} \emph{et al.} \cite{ctpn} & {0.93} & {0.83} & {0.88} \\
+			\hline
+			\textbf{Proposed} & \textbf{0.92} & \textbf{0.81} & \textbf{0.86} \\
+			\hline
+			Zhang \emph{et al.} \cite{fcn-text} & 0.88 & 0.78 & 0.83 \\
+			\hline
+			He \emph{et al.} \cite{he2016text} & 0.93 & 0.73 & 0.82 \\
+			\hline
+			Tian \emph{et al.} \cite{textflow} & 0.85 & 0.76 & 0.80 \\
+			\hline
+		\end{tabular}
+	\end{table}
+	
+	\begin{figure}
+		\label{Fig.8}
+		\centering
+		\subfigure[] {
+			\label{Fig.sub.8a}
+			\includegraphics[scale=0.09]{figures/7-a.eps}}
+		\subfigure[] {
+			\label{Fig.sub.8b}
+			\includegraphics[scale=0.13]{figures/7-b.eps}}	
+
+		\caption{Detection examples of our model on ICDAR2013. (a) word level results for clustered texts. (b) failure cases for single character text and losing characters at either end.}
+	\end{figure}
+	
+	\subsection{Rationality of High Performance}
+	\label{Sec.4.4}
+	The proposed method is intrinsically able to detect texts of arbitrary orientation, and able to partition words automatically.
+	The tremendous improvements in both precision and recall for incidental text is mainly attributed to two aspects. First, the powerful feature representation learned by deep convolutional neural network guarantees high recall. Blurred or low resolution texts that can be hardly extracted by MSER \cite{mser1}, SWT \cite{swt} or other low-level feature based methods \cite{yfpan} are well detected by the classification task. 
+	Moreover, the classifier is also able to distinguish text-like regions providing a solid foundation for regression.
+	Second, the learned mechanism to localize text is much more robust than rule based methods and this ensures the high precision. 
+	Treating word partition as a post processing is prone to lose much useful information and rely on thresholds chosen, but integrating localization into the network for end-to-end training could well solve the mentioned issues above.
+		
+	\subsection{Time Consumption Analysis}
+	\label{Sec.4.5}
+	Differing from the timing analysis in generic object detection, for scene text which varies much in scales, a multi-scale detection strategy is essential. Therefore, we analyze the time consumption in both patch level and image level.
+	
+	For patch level, we compare the time cost of each subnetwork for two input sizes:  $320 \times 320$ and $640 \times 640$. 
+	Timing statistics are listed in Tab.\hyperref[Tab.4]{4} and it is obvious to find that the time cost is a little more than double as the input image size increases twice.
+	
+	For image level, set the image size $1280 \times 720$, the same as that in ICDAR2015 dataset and perform the multi-scale sliding window test strategy as illustrated in Sec.\hyperref[Sec.3.4]{3.4} with stride equal to the window size. The multi-scale set remains unchanged and then according to the patch level time cost listed in Tab.\hyperref[Tab.4]{4}, we can easily estimate the consumed time for the whole image: for patch size $320 \times 320$ the total time cost is $1.4s$ and for $640 \times 640$ the cost is reduced to $0.9s$. Thus, enlarging the window size would be an effective way for speeding up.
+	
+	However, if we consider a slightly loose condition than the ICDAR2015 dataset that we only need to detect text whose short side is larger that 20 pixels, we can directly enlarge the input size to $1280 \times 720$ and the time cost would be greatly reduced to about $0.2s$.
+	
+	\begin{table}
+		\label{Tab.4}
+		\small
+		\renewcommand\arraystretch{1.2}
+		\centering
+		\caption{Time cost comparison between different input sizes. \emph{STD},\emph{LRG}, \emph{GNT} refer the $320\times320, 640\times640, 1280\times720$ input size, respectively. \emph{Feature}, \emph{Fusion}, \emph{Task}, \emph{Patch}, \emph{Image}, \emph{Loose} represent the feature extraction, multi-level fusion, multi-task, patch level, image level and loose condition respectively.}
+		
+		\begin{tabular}{|c|c|c|c|}
+			\hline
+			Stage & \emph{STD} & \emph{LRG} & \emph{GNT} \\
+			\hline
+			\hline
+			\emph{Feature} & 0.017 & 0.037 & \textbackslash \\
+			\hline
+			\emph{Fusion} & 0.005 & 0.013 & \textbackslash \\
+			\hline
+			\emph{Task} & 0.001 & 0.001 & \textbackslash \\
+			\hline
+			\emph{Patch} & 0.024 & 0.051 & \textbackslash \\
+			\hline
+			\emph{Image} & 1.4 & 1.1 & \textbackslash \\
+			\hline
+			\emph{Loose} & \textbackslash & \textbackslash & 0.2 \\
+			\hline
+		\end{tabular}
+	\end{table}
+	
+\section{Conclusion}
+	\label{Sec.5}
+	In this paper, we proposed a novel method for word level arbitrarily-oriented text detection based on the viewpoint that text is a special object in detection task and can be detected as a whole without generating character proposals. 
+	Without character detection, line grouping and word partition in traditional text detection pipeline, our framework is optimized in an end-to-end manner and directly outputs the quadrilateral boundary of each word benefiting from the multi-task design. 
+	On the ICDAR2015 Incidental Scene Text benchmark, our method achieved the state-of-the-art performance and outperformed previous methods by a large margin. 
+	Time consumption analysis also shows that our method is fast.
+
+{\small
+%\bibliographystyle{ieee}
+\bibliographystyle{unsrt}
+\bibliography{egbib}
+}
+
+\end{document}
